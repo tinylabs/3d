@@ -13,10 +13,11 @@ $fn = 60;
 // Input parameters
 wall = 1;
 d_out = 16;
-Vml = 15;  // Volume in mL
+//Vml = 15;  // Volume in mL
+Vml = 5;  // Volume in mL
 neck_h = 6;
 fit = 0.4; // Fudge factor to press fit
-lip_x = 0.4;
+lip_x = 0.6;
 lip_z = 2;
 
 // Derived variables
@@ -51,7 +52,7 @@ module test_tube (h, r, wall, neck_h)
 		}
 
 		// negative
-		tube (h + neck_h, r - wall);
+		tube (h + neck_h + fit, r - wall);
 	}
 	
 	// Add retention lip
@@ -85,7 +86,7 @@ module lip (r, h) {
 	translate ([0, 0, h])
 	rotate_extrude ()
 	translate ([r, 0, 0])
-	polygon([[0,0], [lip_x, 0], [lip_x, 2]]);
+	polygon([[0,0], [lip_x, -1], [lip_x, 2]]);
 }
 
 module cap (r, wall, h)
@@ -127,6 +128,7 @@ module cap (r, wall, h)
 	lip (r + fit, wall + lip_z + fit);
 }
 
+//lip (r_out + fit, wall + lip_z + fit);
 //cap (r_out, wall, neck_h * 2);
 //translate ([0, 0, h + 20])
 //rotate ([180, 0, 0])

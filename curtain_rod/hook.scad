@@ -29,7 +29,7 @@ screw_d = 4;
 
 // Pole dimensions
 pole_d = 25;
-hook_w = 10;
+//hook_w = 10;
 
 module screw_tab ()
 {
@@ -94,6 +94,61 @@ module assm () {
 		connector ();
 }
 
+//translate ([0, 0, cnt_od/2])
+//rotate ([0, -90, 0])
+//assm ();
+
+module test () {
+
+
+	difference () {
+		hull () {
+			// connector hull
+			cylinder (r = cnt_od / 2, h = cnt_h);
+
+			// hook hull
+			translate ([cnt_od/2, 0, pole_d/2 + cnt_h])
+			rotate([0, -90, 0])
+			rotate([0, 0, 45])
+			cylinder (r=(pole_d/2)+wall, h=cnt_od);
+		}
+
+		// Hole for pole
+		translate ([cnt_od/2+0.1, 0, pole_d/2 + cnt_h])
+		rotate([0, -90, 0])
+		rotate([0, 0, 45])
+		cylinder (r=pole_d/2, h=cnt_od+0.2);
+
+		// Remove pole entry
+		//translate ([cnt_od/2+0.1, 0, pole_d/2 + cnt_h])
+		//rotate([0, -90, 0])
+		//rotate([0, 0, 45])
+		//cube ([(pole_d/2)+wall+0.2, (pole_d/2)+wall+0.2, cnt_od]);
+	translate ([cnt_od/2+0.1, 0, pole_d/2 + cnt_h])
+	rotate([0, -90, 0])
+	rotate([0, 0, 45])
+	cube ([(pole_d/2)+2*wall, (pole_d/2)+5*wall, cnt_od+wall]);
+
+		// collar
+		translate ([0, 0, wall])
+		cylinder (r = cnt_id / 2, h = cnt_h);
+
+		// hollow center
+		cylinder (r = (cnt_id / 2)-wall/2, h = cnt_h);
+
+		// Remove slot
+		translate ([0.1, -cnt_slot_w / 2, 0])
+		cube ([cnt_od / 2, cnt_slot_w+0.1, cnt_slot_h]);
+
+	}
+
+	// Add screw tabs
+	translate ([cnt_id/2, cnt_slot_w / 2 + wall/2, 0])
+	screw_tab ();
+	translate ([cnt_id/2, -cnt_slot_w / 2 - wall/2, 0])
+	screw_tab ();
+}
+
 translate ([0, 0, cnt_od/2])
 rotate ([0, -90, 0])
-assm ();
+test();

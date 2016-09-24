@@ -18,14 +18,15 @@
 $fn = 20;
 
 // This should usually be fine but might have to be adjusted
-kerf = 0.125;
-//kerf = 1;
+//kerf = 0.125;
+kerf = 0.11;
 
 // Work area of PCB
 // Must be >= PCB size
 area_x = 44;
 area_y = 36;
 
+// Test points
 tps = [
     [0, 0],
     [area_x, 0],
@@ -33,14 +34,15 @@ tps = [
     [area_x, area_y],
 ];
 
-// Active area offset from edges
-// This must account for hardware on the sides but we make it even
-// all the way around to simplify
-area_offset = 8;
 
 // All measurements in mm
 // Material parameters
 acr_th = 2.5;
+
+// Active area offset from edges
+// This must account for hardware on the sides but we make it even
+// all the way around to simplify
+area_offset = 2 * acr_th + 3;
 
 // Screw radius (we want this tight to avoid play)
 // This should work for M3 hardware
@@ -55,12 +57,12 @@ nut_od = 5.5;
 nut_th = 2.3;
 
 // Just the threads, not including head
-screw_len = 10;
+screw_len = 11;
 
 // Pogo pin receptable dimensions
 // I use the 2 part pogos with replaceable pins. Its a life save when a pin breaks
-pogo_r = (1.8 - kerf) / 2;
-pogo_h = 22;
+pogo_r = (1.7 - kerf) / 2;
+pogo_h = 24;
 
 //
 // DO NOT EDIT below (unless you feel like it)
@@ -87,7 +89,7 @@ module tnut_female ()
 {
     // Screw hole
     translate ([0, -screw_r, 0])
-    cube ([screw_len - acr_id, screw_d, acr_id]);
+    cube ([screw_len - acr_id, screw_d + kerf, acr_id]);
     
     // Make space for nut
     translate ([pad_str, - nut_od/2, 0])
@@ -96,7 +98,7 @@ module tnut_female ()
 
 module tnut_hole ()
 {
-    cylinder (r = screw_r, h = acr_th);
+    cylinder (r = screw_r + kerf, h = acr_th);
 }
 
 module tng_n (length, cnt)

@@ -23,8 +23,8 @@ kerf = 0.11;
 
 // Work area of PCB
 // Must be >= PCB size
-area_x = 44;
-area_y = 36;
+area_x = 28;
+area_y = 45;
 
 // Test points
 tps = [
@@ -34,6 +34,8 @@ tps = [
     [area_x, area_y],
 ];
 
+// DXF outline of pcb
+pcb_outline = "/home/elliot/projects/3d/openfixture/keysy_outline.dxf";
 
 // All measurements in mm
 // Material parameters
@@ -48,9 +50,12 @@ area_offset = 2 * acr_th + 3;
 // This should work for M3 hardware
 screw_r = (2.9 - kerf) / 2;
 screw_d = (screw_r * 2);
+// M3 head machine head
+screw_head_th = 3.2;
 
 // Change to larger size if you want different hardware for pivoting mechanism
 pivot_r = screw_r;
+pivot_d = (2 * pivot_r);
 
 // Nut dimensions (common m3 hardware)
 nut_od = 5.5;
@@ -79,7 +84,12 @@ pad_h2e = 2 * acr_th;
 pad_str = acr_th;
 
 // Chebyshev linkage parameters
-T3 = area_y + (2 * area_offset) - (2 * acr_id) - (2 * pad_h2e);
+L3 = area_y + (2 * area_offset) - (2 * acr_id) - (2 * pad_h2e);
+L2 = L3 * 2.5;
+L1 = L3 * 2;
+
+// Front to hole
+//front2hole = ((area_y + (2 * area_offset)) - L3) / 2;
 
 //
 // MODULES
@@ -137,9 +147,9 @@ module side ()
         cube ([x, y, acr_th]);
         
         // Drop holes for chebychev linkage
-        translate ([acr_id + pad_h2e, (y - T3) / 2, 0])
+        translate ([acr_id + pad_h2e, (y - L3) / 2, 0])
         cylinder (r = pivot_r, h = acr_th);
-        translate ([acr_id + pad_h2e, y - ((y - T3) / 2), 0])
+        translate ([acr_id + pad_h2e, y - ((y - L3) / 2), 0])
         cylinder (r = pivot_r, h = acr_th);
         
         // Remove tng (top and bottom)
@@ -234,39 +244,234 @@ module tp_base (test_points, tp_cnt)
     }
 }
 
-// Laser layout
-module lasercut () 
+module stand_side ()
 {
-    // Left side
-    mirror ([1, 0, 0])
-    side ();
+    pivot_offset = acr_id + pad_h2e + screw_head_th;
+    base_offset = (4 * acr_th);
+    base_x = L2 + area_offset;
+
+    difference () {
+        union () {
+            // vertical support
+            hull () {
+                translate ([0, L1 + base_offset + pivot_offset, 0])
+                cylinder (r = pivot_d, h = acr_th);
+                cylinder (r = pivot_d, h = acr_th);
+            }
+            // Base structure
+            hull () {        
+                cylinder (r = pivot_d, h = acr_th);
+                translate ([0, base_offset - pivot_d, 0])
+                cylinder (r = pivot_d, h = acr_th);
+                translate ([L2 + area_offset - pivot_d, base_offset - pivot_d, 0])
+                cylinder (r = pivot_d, h = acr_th);
+                translate ([L2 + area_offset - pivot_d, 0, 0])
+                cylinder (r = pivot_d, h = acr_th);
+            }
+            
+            // Cross support
+            translate ([sqrt( pow((L1/2), 2) / 2), base_offset - pivot_d, 0])
+            rotate ([0, 0, 45])
+            hull () {
+                cylinder (r = pivot_d, h = acr_th);
+                translate ([0, L1 / 2, 0])
+                cylinder (r = pivot_d, h = acr_th);
+            }
+        }
+        
+        // Remove holes
+        translate ([0, base_offset + pivot_offset, 0])
+        cylinder (r =  pivot_r, h = acr_th); 
+        translate ([0, base_offset + pivot_offset + L1, 0])
+        cylinder (r =  pivot_r, h = acr_th);
+        
+        // Remove tng for carrier
+        translate ([area_y / 2 + base_x - area_offset - area_y, base_offset - acr_th, 0])
+        rotate ([0, 0, 90])
+        tng_n (area_y + 2 * area_offset, 5);
+        translate ([area_y / 2 + base_x - area_offset - area_y, base_offset - (2 * acr_th), 0])
+        rotate ([0, 0, 90])
+        tng_n (area_y + 2 * area_offset, 5);
+        
+        // Remove tng for base support
+        translate ([(L2 - area_y) / 2, 0, 0])
+        rotate ([0, 0, 90])
+        tng_n (L2 - area_y, 3);
+        
+        // Remove tng for back support
+        translate ([-acr_od / 2, base_offset + pivot_offset + L1 / 2, 0])
+        tng_n (L2 / 2, 3);
+        
+        // Remove support holes
+        translate ([0, base_offset + pivot_offset + L1 / 2, 0])
+        tnut_hole ();
+        translate ([(L2 - area_y) / 2, acr_id / 2, 0])
+        tnut_hole ();
+    }    
+}
+
+module stand_base_support (y)
+{
+    x = area_x + (2 * area_offset);
+
+    difference () {
+        // Base cube
+        cube ([x, y, acr_th]);
+        
+        // Remove tng
+        translate ([0, y / 2, 0])
+        tng_p (y, 3);
+        translate ([x - acr_id, y / 2, 0])
+        tng_p (y, 3);
+        
+        // Remove tnuts
+        translate ([acr_id, y / 2, 0])
+        tnut_female ();
+        translate ([x - acr_id, y / 2, 0])
+        rotate ([0, 0, 180])
+        tnut_female ();
+    }
+}
+
+module linkage (length)
+{
+    difference () {
+        hull () {            
+            cylinder (r = pivot_d, h = acr_th);
+            translate ([0, length, 0])
+            cylinder (r = pivot_d, h = acr_th);
+        }
+        
+        // Remove holes
+        cylinder (r = pivot_r, h = acr_th);
+        translate ([0, length, 0])
+        cylinder (r = pivot_r, h = acr_th);
+    }
+}
+
+module linkage_handle (length)
+{
+    handle_length = 20;
+    difference () {
+        hull () {            
+            cylinder (r = pivot_d, h = acr_th);
+            translate ([0, length + handle_length, 0])
+            cylinder (r = pivot_d, h = acr_th);
+        }
+        
+        // Remove holes
+        cylinder (r = pivot_r, h = acr_th);
+        translate ([0, length, 0])
+        cylinder (r = pivot_r, h = acr_th);
+    }
+}
+module spacer ()
+{
+    difference () {
+        cylinder (r = screw_d, h = acr_th);
+        cylinder (r = screw_r, h = acr_th);
+    }
+}
+
+module carrier (dxf_filename) {
+
+    x = area_x + 2 * area_offset;
+    y = area_y + 2 * area_offset;
+    
+    difference () {
+        // Base cube
+        cube ([x, y, acr_th]);
+        
+        // Remove pcb
+        translate ([area_offset, area_y + area_offset, 0])
+        hull () {
+            linear_extrude (height = acr_th)
+            import (dxf_filename);
+        }
+        
+        // Remove tng
+        translate ([0, y/2, 0])
+        tng_p (y, 5);
+        translate ([x - acr_id, y/2, 0])
+        tng_p (y, 5);
+    }
+}
+
+// Laser layout
+module lasercut_head () 
+{
     // Bases
     tp_base (tps, 4);
-    translate ([0, -1, 0])
-    mirror ([0, 1, 0])
+    translate ([area_x + 2 * area_offset + pogo_h, 0, 0])
     tp_base (tps, 4);
     
-    // Right side
+    // Sides
     translate ([area_x + (2 * area_offset), 0, 0])
     side ();
+    translate ([area_x + (2 * area_offset) + 1, area_y + (2 * area_offset) + pogo_h + 1, 5])
+    rotate ([0, 0, -90])
+    side ();
+
     // Back
     translate ([0, area_y + (2 * area_offset), 0])
     back ();
+    
+    // Add pcb carrier
+    translate ([2 * (area_x + 2 * area_offset) + pogo_h + 1, 0, 0])
+    carrier (pcb_outline);
+    
+    // Add blank carrier
+    translate ([3 * (area_x + 2 * area_offset) + pogo_h + 2, 0, 0])
+    carrier ();
+    
+    // Add spacers
+    // Calculate spacers for the front
+    spacer_front_cnt = 2 + ceil (screw_head_th / acr_th);
+    
+    // 4 for rear linkage
+    spacer_cnt = 4 + 4 * spacer_front_cnt;
+    
+    // Calculate offsets
+    spacer_x_offset = 2 * (area_x + 2 * area_offset) + pogo_h + 1;
+    spacer_y_offset = area_y + (2 * area_offset) + screw_d + 1;
+    
+    for (i = [0 : spacer_cnt - 1]) {
+        if (i < spacer_cnt / 2) {
+            translate ([spacer_x_offset + (2 * screw_d) * i, spacer_y_offset, 0])
+            spacer ();
+        } 
+        else {
+            translate ([spacer_x_offset + (2 * screw_d) * (i - spacer_cnt / 2), spacer_y_offset + (2 * screw_d) + 1, 0])
+            spacer ();
+        }
+    }
+}
+
+module lasercut_stand ()
+{
+    
 }
 
 projection (cut = false)
-lasercut ();
+lasercut_head ();
 
 // Testing
-if (0) {
+if (1) {
     //tnut_female_n ();
     //rotate ([0, -90, 0])
     //tp_base (tps, 4);
     //side ();
-    back ();
+    //back ();
     //tnut_hole ();
     //tng_p (area_x + (2 * area_offset), 5);
     //translate ([0, 0, 3])
     //tng_n (area_x + (2 * area_offset), 5);
-    
+    //stand_side ();
+    //stand_base_support (L2 - area_y);
+    //stand_base_support (L2 / 2);
+    //linkage (L2);
+    //linkage_handle (L2);
+    //spacer ();
+    //carrier ("/home/elliot/projects/3d/openfixture/keysy_outline.dxf");
+    //carrier ();
 }

@@ -27,12 +27,19 @@ area_x = 28;
 area_y = 45;
 
 // Test points
-tps = [
-    [0, 0],
-    [area_x, 0],
-    [0, area_y],
-    [area_x, area_y],
+test_points = [
+    [4.85, 19.95],
+    [2.85, 21.25],
+    [4.85, 22.45],
+    [2.85, 23.7],
+    [4.85, 24.95],
+    [2.85, 26.2],
+    [4.85, 27.45],
+    [22.1, 18.8],
+    [23.4, 30.95],
 ];
+
+tp_cnt = 9;
 
 // DXF outline of pcb
 pcb_outline = "/home/elliot/projects/3d/openfixture/keysy_outline.dxf";
@@ -401,9 +408,9 @@ module carrier (dxf_filename) {
 module lasercut_head () 
 {
     // Bases
-    tp_base (tps, 4);
+    tp_base (test_points, tp_cnt);
     translate ([area_x + 2 * area_offset + pogo_h, 0, 0])
-    tp_base (tps, 4);
+    tp_base (test_points, tp_cnt);
     
     // Sides
     translate ([area_x + (2 * area_offset), 0, 0])
@@ -449,11 +456,35 @@ module lasercut_head ()
 
 module lasercut_stand ()
 {
+    // Stand sides
+    stand_side ();
+    translate ([L2 + area_offset, L2 + area_offset, 0])
+    rotate ([0, 0, 180])
+    stand_side ();
     
+    // Add linkage x 3
+    for (i = [2 : 2 : 6]) {
+        translate ([L2 + area_offset + i * (pivot_d + 1), 0, 0])
+        linkage (L2);
+    }
+    
+    // Add handle
+    translate ([0,  L2 + area_offset + 2 * pivot_d + 1, 0])
+    rotate ([0, 0, -90])
+    linkage_handle (L2);
+    
+    // Add base supports
+    translate ([2 * pivot_d + 1, area_y - area_offset + 1, 0])
+    stand_base_support (L2 - area_y);
+    translate ([2 * area_x, (5 * acr_th), 0])
+    stand_base_support (L2 / 2);
+
 }
 
+//projection (cut = false)
+//lasercut_head ();
 projection (cut = false)
-lasercut_head ();
+lasercut_stand ();
 
 // Testing
 if (1) {

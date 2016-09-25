@@ -54,6 +54,8 @@ acr_th = 2.5;
 // This should usually be fine but might have to be adjusted
 //kerf = 0.125;
 kerf = 0.11;
+// Space between laser parts
+laser_pad = 1;
 
 // Work area of PCB
 // Must be >= PCB size
@@ -91,6 +93,9 @@ pogo_compression = 2;
 // Locking tab parameters
 tab_width = 2 * acr_th;
 tab_length = 3 * acr_th;
+
+// Stop tab
+stop_tab_y = 2 * acr_th;
 
 //
 // DO NOT EDIT below (unless you feel like it)
@@ -182,7 +187,7 @@ module nut_hole ()
 {
     difference () {
         cylinder (r = nut_od_c2c/2, h = acr_th, $fn = 6);
-        cylinder (r = screw_r, h = acr_th, $fn = 20);
+        //cylinder (r = screw_r, h = acr_th, $fn = 20);
     }
 }
 
@@ -234,7 +239,6 @@ module head_back ()
 
 module lock_tab ()
 {
-    
     translate ([-tab_length/2, 0, 0])
     cube ([tab_length, tab_width, acr_th]);
     translate ([-tab_length/2, tab_width/2, 0])
@@ -263,9 +267,9 @@ module head_base ()
     
     // Add stop tabs
     translate ([head_x, head_y - 2 * acr_th, 0])
-    cube ([acr_th, 2 * acr_th, acr_th]);
+    cube ([acr_th, stop_tab_y, acr_th]);
     translate ([-acr_th, head_y - 2 * acr_th, 0])
-    cube ([acr_th, 2 * acr_th, acr_th]);
+    cube ([acr_th, stop_tab_y, acr_th]);
 
     // Add lock tabs
     lock_tab ();
@@ -531,11 +535,72 @@ module 3d_model () {
 
 module lasercut ()
 {
+    // Base components
+    base_side ();
+    translate ([2 * base_z + base_pivot_offset + pivot_d + laser_pad, base_y, 0])
+    rotate ([0, 0, 180])
+    base_side ();
     
+    // Add latch
+    yoffset = 2 * pivot_d + screw_d + laser_pad;
+    xoffset = base_z + tab_width + laser_pad;
+    //translate ([base_z + tab_width + laser_pad, 2 * pivot_d + screw_d + laser_pad, 0])
+    translate ([xoffset, yoffset, 0])
+    latch ();
+    
+    // Add spacers
+    yoffset1 = yoffset + base_z / 2 + pivot_d + (3 * acr_th / 2) + screw_d + pivot_d + laser_pad;
+    translate ([xoffset, yoffset1, 0])
+    spacer ();
+    yoffset2 = yoffset1 + 2 * pivot_d + laser_pad;
+    translate ([xoffset, yoffset2, 0])
+    spacer ();
+    
+    // Add base supports
+    xoffset1 = 2 * base_z + base_pivot_offset + pivot_d + 2 * laser_pad;
+    translate ([xoffset1, 0, 0])
+    base_support (head_y / 3);
+    yoffset3 = head_y / 3 + laser_pad;
+    translate ([xoffset1, yoffset3, 0])
+    base_support (head_y / 3);
+    yoffset4 = yoffset3 + head_y / 3 + laser_pad;
+    translate ([xoffset1, yoffset4, 0])
+    base_support (base_z);
+
+    // Add heads
+    xoffset2 = xoffset1 + base_x + tab_length + laser_pad;
+    translate ([xoffset2, 0, 0])
+    head_base ();
+    xoffset3 = xoffset2 + base_x + tab_length + laser_pad;
+    translate ([xoffset3, 0, 0])
+    head_top ();
+    
+    // Add carriers
+    yoffset5 = -head_y - laser_pad;
+    translate ([0, yoffset5, 0])
+    carrier ();
+    xoffset4 = base_x + laser_pad;
+    translate ([xoffset4, yoffset5, 0])
+    carrier (pcb_outline);
+    
+    // Add sides
+    xoffset5 = xoffset4 + base_x + laser_pad;
+    yoffset6 = yoffset5 - 2 * pivot_d;
+    translate ([xoffset5, yoffset6, 0])
+    head_side ();
+    xoffset6 = xoffset5 + head_z + laser_pad;
+    translate ([xoffset6, yoffset6, 0])
+    head_side ();
+    xoffset7 = xoffset6 + head_z + laser_pad;
+    translate ([xoffset7, -head_z - laser_pad, 0])
+    head_back ();
 }
 
-3d_model ();
+//3d_model ();
 //3d_head ();
+
+projection (cut = false)
+lasercut ();
 
 // Testing
 if (1) {

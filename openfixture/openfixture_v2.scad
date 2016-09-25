@@ -23,7 +23,7 @@ kerf = 0.11;
 
 // Work area of PCB
 // Must be >= PCB size
-area_x = 28;
+area_x = 45;
 area_y = 45;
 
 // Test points
@@ -483,8 +483,8 @@ module lasercut_stand ()
 
 //projection (cut = false)
 //lasercut_head ();
-projection (cut = false)
-lasercut_stand ();
+//projection (cut = false)
+//lasercut_stand ();
 
 // Testing
 if (1) {

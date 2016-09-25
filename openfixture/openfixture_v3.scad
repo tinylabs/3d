@@ -59,6 +59,8 @@ kerf = 0.11;
 // Must be >= PCB size
 active_area_x = 28;
 active_area_y = 46;
+//active_area_x = 45;
+//active_area_y = 32;
 
 // Screw radius (we want this tight to avoid play)
 // This should work for M3 hardware
@@ -85,6 +87,10 @@ pogo_r = (1.7 - kerf) / 2;
 pogo_max_compression = 8;
 // Compression at z = 0;
 pogo_compression = 2;
+
+// Locking tab parameters
+tab_width = 2 * acr_th;
+tab_length = 3 * acr_th;
 
 //
 // DO NOT EDIT below (unless you feel like it)
@@ -225,6 +231,16 @@ module head_back ()
         tng_n (head_x, 3);
     }
 }
+
+module lock_tab ()
+{
+    
+    translate ([-tab_length/2, 0, 0])
+    cube ([tab_length, tab_width, acr_th]);
+    translate ([-tab_length/2, tab_width/2, 0])
+    cylinder (r = tab_width / 2, h = acr_th, $fn = 20);
+}
+
 module head_base ()
 {
     nut_offset = 2 * acr_th + screw_r;
@@ -249,7 +265,13 @@ module head_base ()
     translate ([head_x, head_y - 2 * acr_th, 0])
     cube ([acr_th, 2 * acr_th, acr_th]);
     translate ([-acr_th, head_y - 2 * acr_th, 0])
-    cube ([acr_th, 2 * acr_th, acr_th]);    
+    cube ([acr_th, 2 * acr_th, acr_th]);
+
+    // Add lock tabs
+    lock_tab ();
+    translate ([head_x, 0, 0])
+    mirror ([1, 0, 0])
+    lock_tab ();
 }
 
 module head_top ()
@@ -304,6 +326,24 @@ module head_base_common ()
     }
 }
 
+module latch ()
+{
+    pad = 0.8;
+    
+    y = base_z / 2 + pivot_d + (3 * acr_th / 2);
+    difference () {
+        
+        hull () {
+            cylinder (r = screw_d, h = acr_th, $fn = 20);
+            translate ([0, y, 0])
+            cylinder (r = screw_d, h = acr_th, $fn = 20);
+        }
+        
+        cylinder (r = screw_r, h = acr_th, $fn  = 20);
+        translate ([-screw_r, y - acr_th - pad/2, 0])
+        cube ([3 * screw_r, acr_th + pad, acr_th]);
+    }
+}
 module base_side ()
 {
     x = base_z;
@@ -355,6 +395,10 @@ module base_side ()
         tng_n (x, 3);
         translate ([x/2 + acr_th, y - acr_th - pivot_r + (acr_th / 2), 0])        
         tnut_hole ();
+        
+        // Remove locking pivot hole
+        translate ([x/2, tab_width / 2, 0])
+        cylinder (r = screw_r, h = acr_th, $fn = 20);
     }
 }
 
@@ -385,15 +429,40 @@ module base_support (length)
 module spacer ()
 {
     difference () {
-        cylinder (r = pivot_d, h = acr_th, $fn = 20);
+        cylinder (r = pivot_d, h = acr_th, $fn = 40);
         cylinder (r = pivot_r, h = acr_th, $fn = 20);
     }
 }
 
 module carrier (dxf_filename)
 {
+    x = base_x;
+    y = head_y;
     
+    difference () {
+        cube ([x, y, acr_th]);
+        
+        // Remove pcb
+        translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
+        hull () {
+            linear_extrude (height = acr_th)
+            import (dxf_filename);
+        }
+        
+        // Remove slots
+        translate ([0, y/2, 0])
+        tng_n (y, 3);
+        translate ([x - acr_th, y/2, 0])
+        tng_n (y, 3);
+        
+        // Remove holes
+        translate ([acr_th / 2, y / 2, 0])
+        tnut_hole ();
+        translate ([x - acr_th / 2, y / 2, 0])
+        tnut_hole ();
+    }
 }
+
 
 //
 // 3D renderings of assembly
@@ -434,17 +503,39 @@ module 3d_base () {
     base_support (base_z);
     
     // Add spacers
+    translate ([0, base_y - pivot_d, base_z + base_pivot_offset])
     rotate ([0, 90, 0])
     spacer ();
+    translate ([base_x - 3 * acr_th, base_y - pivot_d, base_z + base_pivot_offset])
+    rotate ([0, 90, 0])
+    spacer ();
+    
+    // Add latch
+    translate ([-acr_th * 2, tab_width / 2, base_z / 2])
+    rotate ([90, 0, 0])
+    rotate ([0, 90, 0])
+    latch ();
 }
 
 module 3d_model () {
     translate ([0, 0, base_z + base_pivot_offset - pivot_d])
     3d_head ();
     3d_base ();
+    
+    // Add carrier blank and carrier
+    translate ([-acr_th, 0, base_z - (2 * acr_th)])
+    carrier ();
+    translate ([-acr_th, 0, base_z - acr_th])
+    carrier (pcb_outline);
+}
+
+module lasercut ()
+{
+    
 }
 
 3d_model ();
+//3d_head ();
 
 // Testing
 if (1) {
@@ -454,4 +545,6 @@ if (1) {
     //base_side ();
     //tnut_female ();
     //base_support (head_y / 3);
+    //carrier (pcb_outline);
+    //latch ();
 }

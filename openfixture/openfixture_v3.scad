@@ -42,6 +42,7 @@ pcb_support_scale = 0.90; // 10% around border
 
 // Thickness of pcb
 pcb_th = 0.8;
+//pcb_th = 1.6;
 
 //
 // End PCB input
@@ -75,7 +76,11 @@ screw_d = 2.9;
 screw_r = screw_d / 2;
 
 // Change to larger size if you want different hardware for pivoting mechanism
-pivot_d = screw_d;
+
+// Uncomment to use normal M3 screw for pivot
+//pivot_d = screw_d;
+// Uncomment to use bushing
+pivot_d = 5.12;
 pivot_r = pivot_d / 2;
 
 // Metric M3 hex nut dimensions
@@ -93,8 +98,8 @@ pogo_max_compression = 8;
 pogo_compression = 1;
 
 // Locking tab parameters
-tab_width = 2 * acr_th;
-tab_length = 3 * acr_th;
+tab_width = 3 * acr_th;
+tab_length = 4 * acr_th;
 
 // Stop tab
 stop_tab_y = 2 * acr_th;
@@ -107,7 +112,8 @@ stop_tab_y = 2 * acr_th;
 // a = compression
 // c = active_y_offset + pivot_d
 // cos (min_angle) = a^2 / (2ca)
-min_angle = 89.2;
+//min_angle = 89.2;
+min_angle = 89.5;
 
 // Calculate active_y_back_offset
 active_y_back_offset = (pow (pogo_compression, 2) / (cos (min_angle) * 2 * pogo_compression)) - pivot_d - tp_min_y;
@@ -124,7 +130,7 @@ head_z = screw_thr_len + (acr_th - nut_th);
 // Base dimensions
 base_x = head_x + 2 * acr_th;
 base_y = head_y + 2 * pivot_d;
-base_z = 7 * acr_th; // 3 x thickness for support + 2 carriers
+base_z = 7 * acr_th; // 4 x thickness for support + 2 carriers
 base_pivot_offset = pivot_d + (pogo_max_compression - pogo_compression) - (acr_th - pcb_th);
 
 //
@@ -253,9 +259,24 @@ module head_base ()
     
     difference () {
         
-        // Common base
-        head_base_common ();
-        
+        union () {
+            // Common base
+            head_base_common ();
+
+            // Add stop tabs
+            translate ([head_x, head_y - 2 * acr_th, 0])
+            cube ([acr_th, stop_tab_y, acr_th]);
+            translate ([-acr_th, head_y - 2 * acr_th, 0])
+            cube ([acr_th, stop_tab_y, acr_th]);
+
+            // Add lock tabs
+            lock_tab ();
+            translate ([head_x, 0, 0])
+            mirror ([1, 0, 0])
+            lock_tab ();
+
+        }
+
         // Remove holes for hex nuts
         translate ([nut_offset, nut_offset, 0])
         nut_hole ();
@@ -265,19 +286,13 @@ module head_base ()
         nut_hole ();
         translate ([head_x - nut_offset, nut_offset, 0])
         nut_hole ();
+        
+        // Take 1/4 mouse bit out of front of tabs
+        translate ([-acr_th, 0, 0])
+        cube ([acr_th, tab_width / 4, acr_th]);
+        translate ([head_x, 0, 0])
+        cube ([acr_th, tab_width / 4, acr_th]);
     }
-    
-    // Add stop tabs
-    translate ([head_x, head_y - 2 * acr_th, 0])
-    cube ([acr_th, stop_tab_y, acr_th]);
-    translate ([-acr_th, head_y - 2 * acr_th, 0])
-    cube ([acr_th, stop_tab_y, acr_th]);
-
-    // Add lock tabs
-    lock_tab ();
-    translate ([head_x, 0, 0])
-    mirror ([1, 0, 0])
-    lock_tab ();
 }
 
 module head_top ()
@@ -334,20 +349,20 @@ module head_base_common ()
 
 module latch ()
 {
-    pad = 0.8;
+    pad = tab_width / 6;
     
-    y = base_z / 2 + base_pivot_offset;
+    y = base_z / 2 + base_pivot_offset - pivot_d;
     difference () {
         
         hull () {
-            cylinder (r = screw_d, h = acr_th, $fn = 20);
-            translate ([0, y, 0])
-            cylinder (r = screw_d, h = acr_th, $fn = 20);
+            cylinder (r = tab_width / 2, h = acr_th, $fn = 20);
+            translate ([0, y + screw_d, 0])
+            cylinder (r = tab_width / 2, h = acr_th, $fn = 20);
         }
         
-        cylinder (r = screw_r, h = acr_th, $fn  = 20);
-        translate ([-screw_r, y - acr_th - pad, 0])
-        cube ([3 * screw_r, acr_th + pad, acr_th]);
+        cylinder (r = screw_r, h = acr_th, $fn = 20);
+        translate ([-screw_r, y - (pad/2), 0])
+        cube ([(3 * tab_width) / 4, acr_th + pad, acr_th]);
     }
 }
 module base_side ()
@@ -643,12 +658,12 @@ module test (s)
     }
 }
 
-//3d_model ();
+3d_model ();
 //3d_head ();
 //3d_base ();
 
-projection (cut = false)
-lasercut ();
+//projection (cut = false)
+//lasercut ();
 
 // Testing
 if (1) {

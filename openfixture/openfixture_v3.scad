@@ -38,11 +38,19 @@ tp_cnt = 9;
 pcb_outline = "/home/elliot/projects/3d/openfixture/keysy_outline.dxf";
 pcb_x = 27.14;
 pcb_y = 45;
-pcb_support_scale = 0.90; // 10% around border
+pcb_support_border = 2;
 
 // Thickness of pcb
 pcb_th = 0.8;
 //pcb_th = 1.6;
+
+
+//3d_model ();  // Uncomment for full 3d asssembled model
+//3d_head ();  // Uncomment for assembled head 
+//3d_base ();  // Uncomment for assembled base 
+
+// Uncomment for laser cuttable dxf
+projection (cut = false) lasercut ();
 
 //
 // End PCB input
@@ -58,6 +66,7 @@ acr_th = 2.5;
 // This should usually be fine but might have to be adjusted
 //kerf = 0.125;
 kerf = 0.11;
+
 // Space between laser parts
 laser_pad = 2;
 
@@ -65,17 +74,14 @@ laser_pad = 2;
 // Must be >= PCB size
 active_area_x = 28;
 active_area_y = 46;
-//active_area_x = 45;
-//active_area_y = 32;
 
 // Screw radius (we want this tight to avoid play)
 // This should work for M3 hardware
 // Just the threads, not including head
+// Should be no less than 10
 screw_thr_len = 10;
 screw_d = 2.9;
 screw_r = screw_d / 2;
-
-// Change to larger size if you want different hardware for pivoting mechanism
 
 // Uncomment to use normal M3 screw for pivot
 //pivot_d = screw_d;
@@ -105,7 +111,7 @@ tab_length = 4 * acr_th;
 stop_tab_y = 2 * acr_th;
 
 //
-// DO NOT EDIT below (unless you feel like it)
+// DO NOT EDIT below unless you feel like it ;-)
 //
 // Calculate min distance to hinge with a constraint on
 // the angle of the pogo pin when it meets compression with the board.
@@ -130,24 +136,23 @@ head_z = screw_thr_len + (acr_th - nut_th);
 // Base dimensions
 base_x = head_x + 2 * acr_th;
 base_y = head_y + 2 * pivot_d;
-base_z = 7 * acr_th; // 4 x thickness for support + 2 carriers
+base_z = screw_thr_len + 2 * acr_th;
 base_pivot_offset = pivot_d + (pogo_max_compression - pogo_compression) - (acr_th - pcb_th);
 
 //
 // MODULES
 //
-
-module tnut_female ()
+module tnut_female (n)
 {
     // Pad for screw
     pad = 0.4;
     
     // Screw hole
     translate ([0, -screw_r - pad/2, 0])
-    cube ([screw_thr_len - acr_th, screw_d + pad, acr_th]);
+    cube ([screw_thr_len, screw_d + pad, acr_th]);
     
     // Make space for nut
-    translate ([acr_th, -nut_od_f2f/2, 0])
+    translate ([acr_th * (n + 1), -nut_od_f2f/2, 0])
     cube ([nut_th, nut_od_f2f, acr_th]);
 }
 
@@ -288,9 +293,9 @@ module head_base ()
         nut_hole ();
         
         // Take 1/4 mouse bit out of front of tabs
-        translate ([-acr_th, 0, 0])
+        translate ([-2 * acr_th, 0, 0])
         cube ([acr_th, tab_width / 4, acr_th]);
-        translate ([head_x, 0, 0])
+        translate ([head_x + acr_th, 0, 0])
         cube ([acr_th, tab_width / 4, acr_th]);
     }
 }
@@ -394,9 +399,9 @@ module base_side ()
         tng_p (head_y, 3);
         
         // Remove tnut slot
-        translate ([x - (2 * acr_th), head_y / 2, 0])
+        translate ([x, head_y / 2, 0])
         rotate ([0, 0, 180])
-        tnut_female ();
+        tnut_female (2);
         
         // Cross bar support
         translate ([acr_th, head_y / 6 + acr_th, 0])
@@ -439,11 +444,11 @@ module base_support (length)
         tng_p (y, 3);
         
         // Remove female tnuts
-        translate ([acr_th, y / 2, 0])
-        tnut_female ();
-        translate ([x - acr_th, y / 2, 0])
+        translate ([0, y / 2, 0])
+        tnut_female (1);
+        translate ([x, y / 2, 0])
         rotate ([0, 0, 180])
-        tnut_female ();
+        tnut_female (1);
     }
 }
 
@@ -455,33 +460,29 @@ module spacer ()
     }
 }
 
-module carrier (dxf_filename, pcb_x, pcb_y, s)
+module carrier (dxf_filename, pcb_x, pcb_y, border)
 {
     x = base_x;
     y = head_y;
     
+    // Calculate scale factors
+    scale_x = 1 - ((2 * border) / pcb_x);
+    scale_y = 1 - ((2 * border) / pcb_y);
+
     difference () {
         cube ([x, y, acr_th]);
         
         // Get scale_offset
-        sx_offset = (pcb_x - (pcb_x * s)) / 2;
-        sy_offset = (pcb_y - (pcb_y * s)) / 2;
-        
-        if (s == 1) {
-            translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
-            hull () {
-                linear_extrude (height = acr_th)
-                import (dxf_filename);
-            }        
-        }
-        else {
-            translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
-            translate ([sx_offset, -sy_offset, 0])
-            hull () {
-                linear_extrude (height = acr_th)
-                scale ([s, s, 1])
-                import (dxf_filename);
-            }
+        sx_offset = (pcb_x - (pcb_x * scale_x)) / 2;
+        sy_offset = (pcb_y - (pcb_y * scale_y)) / 2;
+
+        // Import dxf, extrude and translate
+        translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
+        translate ([sx_offset, -sy_offset, 0])
+        hull () {
+            linear_extrude (height = acr_th)
+            scale ([scale_x, scale_y, 1])
+            import (dxf_filename);
         }
         
         // Remove slots
@@ -553,15 +554,15 @@ module 3d_base () {
 }
 
 module 3d_model () {
-    translate ([0, 0, base_z + base_pivot_offset - pivot_d])
-    3d_head ();
+    //translate ([0, 0, base_z + base_pivot_offset - pivot_d])
+    //3d_head ();
     3d_base ();
     
     // Add carrier blank and carrier
     translate ([-acr_th, 0, base_z - (2 * acr_th)])
-    carrier (pcb_outline, pcb_x, pcb_y, pcb_support_scale);
+    carrier (pcb_outline, pcb_x, pcb_y, pcb_support_border);
     translate ([-acr_th, 0, base_z - acr_th])
-    carrier (pcb_outline, pcb_x, pcb_y, 1);
+    carrier (pcb_outline, pcb_x, pcb_y, 0);
 }
 
 module lasercut ()
@@ -609,10 +610,10 @@ module lasercut ()
     // Add carriers
     yoffset5 = -head_y - laser_pad;
     translate ([0, yoffset5, 0])
-    carrier (pcb_outline, pcb_x, pcb_y, pcb_support_scale);
+    carrier (pcb_outline, pcb_x, pcb_y, pcb_support_border);
     xoffset4 = base_x + laser_pad;
     translate ([xoffset4, yoffset5, 0])
-    carrier (pcb_outline, pcb_x, pcb_y, 1);
+    carrier (pcb_outline, pcb_x, pcb_y, 0);
     
     // Add sides
     xoffset5 = xoffset4 + base_x + laser_pad;
@@ -625,60 +626,4 @@ module lasercut ()
     xoffset7 = xoffset6 + head_z + laser_pad;
     translate ([xoffset7, -head_z - laser_pad, 0])
     head_back ();
-}
-
-module test (s)
-{
-    x = pcb_x;
-    sx = x * s;
-    y = pcb_y;
-    sy = y * s;
-    dxf_filename = pcb_outline;
-    
-    // Get scale_offset
-    sx_offset = (x - sx) / 2; ;
-    sy_offset = (y - sy) / 2;
-    
-    // Remove pcb
-    if (s == 1) {
-        translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
-        hull () {
-            linear_extrude (height = acr_th)
-            import (dxf_filename);
-        }        
-    }
-    else {
-        translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
-        translate ([sx_offset, -sy_offset, 0])
-        hull () {
-            linear_extrude (height = acr_th)
-            scale ([s, s, 1])
-            import (dxf_filename);
-        }
-    }
-}
-
-3d_model ();
-//3d_head ();
-//3d_base ();
-
-//projection (cut = false)
-//lasercut ();
-
-// Testing
-if (1) {
-    //head_base ();
-    //head_side ();
-    //head_back ();
-    //base_side ();
-    //tnut_female ();
-    //base_support (head_y / 3);
-    //carrier (pcb_outline, pcb_x, pcb_y, pcb_support_scale);
-    //translate ([0, 0, 3])
-    //carrier (pcb_outline, pcb_x, pcb_y, 1);
-    //carrier (pcb_outline, pcb_x, pcb_y, 0.90);
-    //latch ();
-    //translate ([0, 0, 4])
-    //#test (0.9);
-    //test (1);
 }

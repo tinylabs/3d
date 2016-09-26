@@ -31,11 +31,14 @@ test_points = [
     [22.1, 18.8],
     [23.4, 30.95],
 ];
-
+tp_min_y = 18.8;
 tp_cnt = 9;
 
 // DXF outline of pcb
 pcb_outline = "/home/elliot/projects/3d/openfixture/keysy_outline.dxf";
+pcb_x = 27.14;
+pcb_y = 45;
+pcb_support_scale = 0.90; // 10% around border
 
 // Thickness of pcb
 pcb_th = 0.8;
@@ -55,7 +58,7 @@ acr_th = 2.5;
 //kerf = 0.125;
 kerf = 0.11;
 // Space between laser parts
-laser_pad = 1;
+laser_pad = 2;
 
 // Work area of PCB
 // Must be >= PCB size
@@ -82,13 +85,12 @@ nut_od_c2c = 6;
 nut_th = 2.25;
 
 // Pogo pin receptable dimensions
-// I use the 2 part pogos with replaceable pins. Its a life save when a pin breaks
-pogo_r = (1.7 - kerf) / 2;
+// I use the 2 part pogos with replaceable pins. Its a lifer save when a pin breaks
+pogo_r = 1.7 / 2;
 
 // Uncompressed length from receptacle
 pogo_max_compression = 8;
-// Compression at z = 0;
-pogo_compression = 2;
+pogo_compression = 1;
 
 // Locking tab parameters
 tab_width = 2 * acr_th;
@@ -100,19 +102,29 @@ stop_tab_y = 2 * acr_th;
 //
 // DO NOT EDIT below (unless you feel like it)
 //
+// Calculate min distance to hinge with a constraint on
+// the angle of the pogo pin when it meets compression with the board.
+// a = compression
+// c = active_y_offset + pivot_d
+// cos (min_angle) = a^2 / (2ca)
+min_angle = 89.2;
+
+// Calculate active_y_back_offset
+active_y_back_offset = (pow (pogo_compression, 2) / (cos (min_angle) * 2 * pogo_compression)) - pivot_d - tp_min_y;
+
 // Active area parameters
 active_x_offset = 2 * acr_th + nut_od_f2f + 2;
 active_y_offset = 2 * acr_th + nut_od_f2f + 2;
 
 // Head dimensions
 head_x = active_area_x + 2 * active_x_offset;
-head_y = active_area_y + 2 * active_y_offset;
+head_y = active_area_y + active_y_offset + active_y_back_offset;
 head_z = screw_thr_len + (acr_th - nut_th);
 
 // Base dimensions
 base_x = head_x + 2 * acr_th;
 base_y = head_y + 2 * pivot_d;
-base_z = 6 * acr_th; // 3 x thickness for support + 2 carriers
+base_z = 7 * acr_th; // 3 x thickness for support + 2 carriers
 base_pivot_offset = pivot_d + (pogo_max_compression - pogo_compression) - (acr_th - pcb_th);
 
 //
@@ -173,16 +185,6 @@ module spacer ()
     }
 }
 
-module carrier (dxf_filename) {
-
-
-    // Remove pcb
-    hull () {
-        linear_extrude (height = acr_th)
-        import (dxf_filename);
-    }
-        
-}
 module nut_hole ()
 {
     difference () {
@@ -334,7 +336,7 @@ module latch ()
 {
     pad = 0.8;
     
-    y = base_z / 2 + pivot_d + (3 * acr_th / 2);
+    y = base_z / 2 + base_pivot_offset;
     difference () {
         
         hull () {
@@ -344,7 +346,7 @@ module latch ()
         }
         
         cylinder (r = screw_r, h = acr_th, $fn  = 20);
-        translate ([-screw_r, y - acr_th - pad/2, 0])
+        translate ([-screw_r, y - acr_th - pad, 0])
         cube ([3 * screw_r, acr_th + pad, acr_th]);
     }
 }
@@ -438,7 +440,7 @@ module spacer ()
     }
 }
 
-module carrier (dxf_filename)
+module carrier (dxf_filename, pcb_x, pcb_y, s)
 {
     x = base_x;
     y = head_y;
@@ -446,11 +448,25 @@ module carrier (dxf_filename)
     difference () {
         cube ([x, y, acr_th]);
         
-        // Remove pcb
-        translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
-        hull () {
-            linear_extrude (height = acr_th)
-            import (dxf_filename);
+        // Get scale_offset
+        sx_offset = (pcb_x - (pcb_x * s)) / 2;
+        sy_offset = (pcb_y - (pcb_y * s)) / 2;
+        
+        if (s == 1) {
+            translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
+            hull () {
+                linear_extrude (height = acr_th)
+                import (dxf_filename);
+            }        
+        }
+        else {
+            translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
+            translate ([sx_offset, -sy_offset, 0])
+            hull () {
+                linear_extrude (height = acr_th)
+                scale ([s, s, 1])
+                import (dxf_filename);
+            }
         }
         
         // Remove slots
@@ -528,9 +544,9 @@ module 3d_model () {
     
     // Add carrier blank and carrier
     translate ([-acr_th, 0, base_z - (2 * acr_th)])
-    carrier ();
+    carrier (pcb_outline, pcb_x, pcb_y, pcb_support_scale);
     translate ([-acr_th, 0, base_z - acr_th])
-    carrier (pcb_outline);
+    carrier (pcb_outline, pcb_x, pcb_y, 1);
 }
 
 module lasercut ()
@@ -578,10 +594,10 @@ module lasercut ()
     // Add carriers
     yoffset5 = -head_y - laser_pad;
     translate ([0, yoffset5, 0])
-    carrier ();
+    carrier (pcb_outline, pcb_x, pcb_y, pcb_support_scale);
     xoffset4 = base_x + laser_pad;
     translate ([xoffset4, yoffset5, 0])
-    carrier (pcb_outline);
+    carrier (pcb_outline, pcb_x, pcb_y, 1);
     
     // Add sides
     xoffset5 = xoffset4 + base_x + laser_pad;
@@ -596,8 +612,40 @@ module lasercut ()
     head_back ();
 }
 
+module test (s)
+{
+    x = pcb_x;
+    sx = x * s;
+    y = pcb_y;
+    sy = y * s;
+    dxf_filename = pcb_outline;
+    
+    // Get scale_offset
+    sx_offset = (x - sx) / 2; ;
+    sy_offset = (y - sy) / 2;
+    
+    // Remove pcb
+    if (s == 1) {
+        translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
+        hull () {
+            linear_extrude (height = acr_th)
+            import (dxf_filename);
+        }        
+    }
+    else {
+        translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
+        translate ([sx_offset, -sy_offset, 0])
+        hull () {
+            linear_extrude (height = acr_th)
+            scale ([s, s, 1])
+            import (dxf_filename);
+        }
+    }
+}
+
 //3d_model ();
 //3d_head ();
+//3d_base ();
 
 projection (cut = false)
 lasercut ();
@@ -610,6 +658,12 @@ if (1) {
     //base_side ();
     //tnut_female ();
     //base_support (head_y / 3);
-    //carrier (pcb_outline);
+    //carrier (pcb_outline, pcb_x, pcb_y, pcb_support_scale);
+    //translate ([0, 0, 3])
+    //carrier (pcb_outline, pcb_x, pcb_y, 1);
+    //carrier (pcb_outline, pcb_x, pcb_y, 0.90);
     //latch ();
+    //translate ([0, 0, 4])
+    //#test (0.9);
+    //test (1);
 }

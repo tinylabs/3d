@@ -44,13 +44,23 @@ pcb_support_border = 2;
 pcb_th = 0.8;
 //pcb_th = 1.6;
 
+// Correction offset
+// These are final adjustments to board placement to make alignment perfect
+// Could probably remove this is the model was perfect and using
+// kerf calculations in all the right places. We are pretty close though..
+// 
+tp_correction_offset_x = -1.0;
+tp_correction_offset_y = 0.0;
+
+// Uncomment for alignment check and adjust variables above
+//projection (cut = false) alignment_check ();
+
+// Uncomment for laser cuttable dxf
+projection (cut = false) lasercut ();
 
 //3d_model ();  // Uncomment for full 3d asssembled model
 //3d_head ();  // Uncomment for assembled head 
 //3d_base ();  // Uncomment for assembled base 
-
-// Uncomment for laser cuttable dxf
-projection (cut = false) lasercut ();
 
 //
 // End PCB input
@@ -63,9 +73,10 @@ $fn = 10;
 // Material parameters
 acr_th = 2.5;
 
-// This should usually be fine but might have to be adjusted
+// Kerf adjustment
+// This currently isn't used at all
 //kerf = 0.125;
-kerf = 0.11;
+//kerf = 0.11;
 
 // Space between laser parts
 laser_pad = 2;
@@ -144,15 +155,19 @@ base_pivot_offset = pivot_d + (pogo_max_compression - pogo_compression) - (acr_t
 //
 module tnut_female (n)
 {
+    // How much grip material
+    tnut_grip = 4;
+    
     // Pad for screw
     pad = 0.4;
+    screw_len_pad = 1;
     
     // Screw hole
     translate ([0, -screw_r - pad/2, 0])
-    cube ([screw_thr_len, screw_d + pad, acr_th]);
+    cube ([screw_thr_len + screw_len_pad, screw_d + pad, acr_th]);
     
     // Make space for nut
-    translate ([acr_th * (n + 1), -nut_od_f2f/2, 0])
+    translate ([acr_th * n + tnut_grip, -nut_od_f2f/2, 0])
     cube ([nut_th, nut_od_f2f, acr_th]);
 }
 
@@ -165,11 +180,11 @@ module tng_n (length, cnt)
 {
     tng_y = (length / cnt);
     
-    translate ([0, -length / 2 - kerf, 0])
+    translate ([0, -length / 2, 0])
     union () {
         for (i = [0 : 2 : cnt - 1]) {
             translate ([0, i * tng_y, 0])
-            cube ([acr_th, tng_y + 2 * kerf, acr_th]);
+            cube ([acr_th, tng_y, acr_th]);
         }
     }
 }
@@ -231,7 +246,7 @@ module head_side ()
     }
 }
 
-module head_back ()
+module head_front_back ()
 {
     x = head_x - 4 * acr_th;
     y = head_z;
@@ -337,6 +352,9 @@ module head_base_common ()
         translate ([head_x / 2, head_y - 2 * acr_th, 0])
         rotate ([0, 0, 90])
         tng_p (head_x, 3);
+        translate ([head_x / 2, acr_th, 0])        
+        rotate ([0, 0, 90])
+        tng_p (head_x, 3);
         
         // Calc (x,y) origin = (0, 0)
         origin_x = active_x_offset;
@@ -394,9 +412,9 @@ module base_side ()
 
         // Remove carrier slots
         translate ([x - acr_th, head_y / 2, 0])
-        tng_p (head_y, 3);
+        tng_p (head_y, 7);
         translate ([x - 2 * acr_th, head_y / 2, 0])
-        tng_p (head_y, 3);
+        tng_p (head_y, 7);
         
         // Remove tnut slot
         translate ([x, head_y / 2, 0])
@@ -477,7 +495,8 @@ module carrier (dxf_filename, pcb_x, pcb_y, border)
         sy_offset = (pcb_y - (pcb_y * scale_y)) / 2;
 
         // Import dxf, extrude and translate
-        translate ([acr_th + active_x_offset, active_area_y + active_y_offset, 0])
+        translate ([acr_th + active_x_offset + tp_correction_offset_x, 
+                   active_area_y + active_y_offset + tp_correction_offset_y, 0])
         translate ([sx_offset, -sy_offset, 0])
         hull () {
             linear_extrude (height = acr_th)
@@ -487,9 +506,9 @@ module carrier (dxf_filename, pcb_x, pcb_y, border)
         
         // Remove slots
         translate ([0, y/2, 0])
-        tng_n (y, 3);
+        tng_n (y, 7);
         translate ([x - acr_th, y/2, 0])
-        tng_n (y, 3);
+        tng_n (y, 7);
         
         // Remove holes
         translate ([acr_th / 2, y / 2, 0])
@@ -518,7 +537,10 @@ module 3d_head ()
     head_top ();
     translate ([0, head_y - acr_th, 0])
     rotate ([90, 0, 0])
-    head_back ();
+    head_front_back ();
+    translate ([0, 2 * acr_th, 0])
+    rotate ([90, 0, 0])
+    head_front_back ();
 }
 
 module 3d_base () {
@@ -554,14 +576,23 @@ module 3d_base () {
 }
 
 module 3d_model () {
-    //translate ([0, 0, base_z + base_pivot_offset - pivot_d])
-    //3d_head ();
+    translate ([0, 0, base_z + base_pivot_offset - pivot_d])
+    3d_head ();
     3d_base ();
     
     // Add carrier blank and carrier
     translate ([-acr_th, 0, base_z - (2 * acr_th)])
     carrier (pcb_outline, pcb_x, pcb_y, pcb_support_border);
     translate ([-acr_th, 0, base_z - acr_th])
+    carrier (pcb_outline, pcb_x, pcb_y, 0);
+}
+
+module alignment_check ()
+{
+    // Just need base and upper carrier
+    head_base ();
+    // Add board carrier
+    translate ([head_x + tab_length, 0, 0])
     carrier (pcb_outline, pcb_x, pcb_y, 0);
 }
 
@@ -625,5 +656,7 @@ module lasercut ()
     head_side ();
     xoffset7 = xoffset6 + head_z + laser_pad;
     translate ([xoffset7, -head_z - laser_pad, 0])
-    head_back ();
+    head_front_back ();
+    translate ([xoffset7, -2 * head_z - 2 * laser_pad, 0])
+    head_front_back ();
 }
